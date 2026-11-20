@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sổ Tay Từ Vựng Thông Minh — Tự Động Phân Tích Word Family</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #F8FAFC;
+      color: #0F172A;
+    }
+    .card-enter {
+      animation: slideUp 0.22s ease-out;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="bg-[#F8FAFC] text-slate-900 min-h-screen flex flex-col">
+
+  <!-- Toast thông báo gọn nhẹ -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- HEADER TỐI GIẢN 3 TAB -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <!-- Logo & Tên App -->
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-xl bg-[#4F46E5] flex items-center justify-center text-white text-lg font-extrabold shadow-xs shrink-0">
+          📘
+        </div>
+        <div>
+          <h1 class="font-extrabold text-base sm:text-lg text-slate-900 leading-tight">Sổ Tay Từ Vựng Thông Minh</h1>
+          <p class="text-xs text-slate-500">Gõ từ mới → Tự động tách Word Family, Collocations & Ví dụ</p>
+        </div>
+      </div>
+
+      <!-- 3 Tab Chính Duy Nhất -->
+      <nav class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl self-start sm:self-auto">
+        <button onclick="switchMainTab('lookup')" id="tab-lookup" class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white text-[#4F46E5] shadow-2xs transition flex items-center gap-1.5">
+          <span>➕</span> <span>Thêm & Tra Từ</span>
+        </button>
+        <button onclick="switchMainTab('deck')" id="tab-deck" class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5">
+          <span>🗂</span> <span>Kho Từ (<span id="saved-count-badge">0</span>)</span>
+        </button>
+        <button onclick="switchMainTab('practice')" id="tab-practice" class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5">
+          <span>⚡</span> <span>Luyện Nhớ</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- NỘI DUNG CHÍNH -->
+  <main class="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- ===================================================================== -->
+    <!-- TAB 1: ➕ THÊM & TRA TỪ TỰ ĐỘNG (MẶC ĐỊNH)                            -->
+    <!-- ===================================================================== -->
+    <section id="view-lookup" class="space-y-5">
+      <!-- Ô nhập từ mới siêu to, rõ ràng -->
+      <div class="bg-white rounded-3xl border border-slate-200 p-5 sm:p-7 shadow-2xs space-y-4">
+        <div class="flex items-center justify-between gap-2">
+          <label for="word-input" class="font-extrabold text-base sm:text-lg text-slate-900">
+            Nhập từ vựng tiếng Anh bạn vừa gặp:
+          </label>
+          <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer select-none">
+            <input type="checkbox" id="auto-save-toggle" checked class="w-4 h-4 rounded text-[#4F46E5] focus:ring-[#4F46E5]" />
+            <span>Tự động lưu vào kho</span>
+          </label>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-2.5">
+          <input
+            id="word-input"
+            type="text"
+            autocomplete="off"
+            placeholder="Ví dụ: confirm, negotiate, shipment, eligible, distribute..."
+            class="flex-1 px-4 py-3.5 rounded-2xl bg-slate-50 border-2 border-slate-200 text-base sm:text-lg font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:border-[#4F46E5] focus:bg-white transition"
+            onkeydown="if(event.key==='Enter') analyzeWord()"
+          />
+          <button
+            id="analyze-btn"
+            onclick="analyzeWord()"
+            class="px-6 py-3.5 rounded-2xl bg-[#4F46E5] hover:bg-indigo-700 text-white text-sm sm:text-base font-extrabold shadow-xs transition shrink-0 flex items-center justify-center gap-2"
+          >
+            <span>✨ Phân tích từ</span>
+          </button>
+        </div>
+
+        <!-- Gợi ý bấm thử nhanh -->
+        <div class="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+          <span class="text-slate-400 font-medium mr-1">Thử nhanh:</span>
+          <button onclick="quickLookup('negotiate')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-[#4F46E5] font-semibold transition">negotiate</button>
+          <button onclick="quickLookup('confirm')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-[#4F46E5] font-semibold transition">confirm</button>
+          <button onclick="quickLookup('eligible')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-[#4F46E5] font-semibold transition">eligible</button>
+          <button onclick="quickLookup('distribute')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-[#4F46E5] font-semibold transition">distribute</button>
+          <button onclick="quickLookup('accommodate')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-[#4F46E5] font-semibold transition">accommodate</button>
+          <button onclick="quickLookup('expedite')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-[#4F46E5] font-semibold transition">expedite</button>
+        </div>
+      </div>
+
+      <!-- Khung hiển thị kết quả phân tích chi tiết -->
+      <div id="result-container"></div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 2: 🗂 KHO TỪ VỰNG CỦA TÔI                                         -->
+    <!-- ===================================================================== -->
+    <section id="view-deck" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-1.5">
+          <button onclick="setDeckFilter('all', this)" class="deck-filter-btn px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#4F46E5] text-white">Tất cả</button>
+          <button onclick="setDeckFilter('learning', this)" class="deck-filter-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200">Cần ôn tập</button>
+          <button onclick="setDeckFilter('mastered', this)" class="deck-filter-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200">Đã thuộc</button>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <input id="deck-search" type="text" oninput="renderSavedDeck()" placeholder="🔍 Tìm trong sổ từ..." class="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:border-[#4F46E5]" />
+          <button onclick="exportDeckCsv()" class="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold shrink-0" title="Tải về file Excel/CSV">
+            ⬇️ Xuất CSV
+          </button>
+        </div>
+      </div>
+
+      <div id="saved-deck-list" class="space-y-3"></div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 3: ⚡ LUYỆN NHỚ NHANH (FLASHCARD + TRẮC NGHIỆM)                   -->
+    <!-- ===================================================================== -->
+    <section id="view-practice" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="font-extrabold text-base text-slate-900">⚡ Ôn Nhanh Từ Vựng Đã Lưu</h2>
+          <p class="text-xs text-slate-500">Ôn lại nghĩa, Word Family và cách đặt câu từ chính sổ tay của bạn.</p>
+        </div>
+        <div class="inline-flex bg-slate-100 p-1 rounded-xl self-start">
+          <button onclick="setPracticeMode('flashcard')" id="pmode-flashcard" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#4F46E5] text-white transition">
+            🃏 Lật thẻ Flashcard
+          </button>
+          <button onclick="setPracticeMode('quiz')" id="pmode-quiz" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition">
+            🎯 Trắc nghiệm nhanh
+          </button>
+        </div>
+      </div>
+
+      <div id="practice-stage" class="max-w-2xl mx-auto"></div>
+    </section>
+
+  </main>
+
+  <script>
+    // =========================================================================
+    // 1. KHO TỪ ĐIỂN CHẤT LƯỢNG CAO (TOEIC & CÔNG SỞ) + ENGINE SINH TỰ ĐỘNG
+    // =========================================================================
+    const CURATED_DICTIONARY = {
+      "confirm": {
+        word: "confirm",
+        ipa: "/kənˈfɝːm/",
+        pos: "v",
+        cefr: "B1",
+        meaning: "Xác nhận, chứng thực (lịch hẹn, đơn hàng, thông tin)",
+        family: [
+          { word: "confirm", pos: "v", note: "xác nhận" },
+          { word: "confirmation", pos: "n", note: "sự xác nhận / giấy xác nhận" },
+          { word: "confirmed", pos: "adj", note: "đã được xác nhận" },
+          { word: "confirmable", pos: "adj", note: "có thể xác nhận" }
+        ],
+        collocations: [
+          "confirm an appointment (xác nhận lịch hẹn)",
+          "written confirmation (xác nhận bằng văn bản)",
+          "serve as confirmation (đóng vai trò xác nhận)"
+        ],
+        exEn: "This letter serves as confirmation that we have received your cancellation request.",
+        exVi: "Lá thư này đóng vai trò xác nhận rằng chúng tôi đã nhận được yêu cầu hủy của bạn.",
+        note: "⚠️ Dễ nhầm với 'conform' (/kənˈfɔːrm/ - tuân thủ theo quy tắc)."
+      },
+      "negotiate": {
+        word: "negotiate",
+        ipa: "/nɪˈɡoʊ.ʃi.eɪt/",
+        pos: "v",
+        cefr: "B1",
+        meaning: "Đàm phán, thương lượng (hợp đồng, giá cả, điều khoản)",
+        family: [
+          { word: "negotiate", pos: "v", note: "đàm phán" },
+          { word: "negotiation", pos: "n", note: "cuộc đàm phán" },
+          { word: "negotiator", pos: "n", note: "người đàm phán" },
+          { word: "negotiable", pos: "adj", note: "có thể thương lượng" }
+        ],
+        collocations: [
+          "negotiate a contract (đàm phán hợp đồng)",
+          "negotiate the terms (thương lượng các điều khoản)",
+          "under negotiation (đang trong quá trình đàm phán)"
+        ],
+        exEn: "After negotiating with representatives, we refused to accept the terms they offered.",
+        exVi: "Sau khi đàm phán với các đại diện, chúng tôi đã từ chối chấp nhận các điều khoản họ đưa ra.",
+        note: "Dùng trực tiếp 'negotiate + O' (không dùng 'negotiate about')."
+      },
+      "eligible": {
+        word: "eligible",
+        ipa: "/ˈel.ə.dʒə.bəl/",
+        pos: "adj",
+        cefr: "B2",
+        meaning: "Đủ điều kiện, đủ tư cách (nhận thưởng, tham gia, ứng tuyển)",
+        family: [
+          { word: "eligible", pos: "adj", note: "đủ điều kiện" },
+          { word: "ineligible", pos: "adj", note: "không đủ điều kiện" },
+          { word: "eligibility", pos: "n", note: "tư cách hợp lệ, sự đủ điều kiện" }
+        ],
+        collocations: [
+          "be eligible for + N (đủ điều kiện nhận cái gì)",
+          "be eligible to + V (đủ tư cách làm gì)"
+        ],
+        exEn: "Although employees themselves are prohibited from entering the contest, their family members are eligible.",
+        exVi: "Mặc dù bản thân nhân viên bị cấm tham gia cuộc thi, người thân của họ vẫn đủ điều kiện.",
+        note: "⚠️ Hay bẫy với 'legible' (/ˈledʒ.ə.bəl/ - chữ viết rõ ràng, dễ đọc)."
+      },
+      "distribute": {
+        word: "distribute",
+        ipa: "/dɪˈstrɪb.juːt/",
+        pos: "v",
+        cefr: "B1",
+        meaning: "Phân phối, phân phát (hàng hóa, tài liệu, tờ rơi)",
+        family: [
+          { word: "distribute", pos: "v", note: "phân phối" },
+          { word: "distribution", pos: "n", note: "việc phân phối" },
+          { word: "distributor", pos: "n", note: "nhà phân phối" },
+          { word: "distributive", pos: "adj", note: "thuộc về phân phối" }
+        ],
+        collocations: [
+          "distribute promotional flyers (phát tờ rơi quảng cáo)",
+          "distribution center (trung tâm phân phối)",
+          "leading distributor (nhà phân phối hàng đầu)"
+        ],
+        exEn: "We have hired a reliable logistics firm to handle the storage and distribution of our products.",
+        exVi: "Chúng tôi đã thuê một công ty logistics uy tín để xử lý việc lưu kho và phân phối sản phẩm.",
+        note: "Phân biệt trong TOEIC Part 5: 'distribution' (việc phân phối) vs. 'distributor' (công ty phân phối)."
+      },
+      "accommodate": {
+        word: "accommodate",
+        ipa: "/əˈkɑː.mə.deɪt/",
+        pos: "v",
+        cefr: "B2",
+        meaning: "Chứa được (sức chứa); đáp ứng (nhu cầu/yêu cầu); cung cấp chỗ ở",
+        family: [
+          { word: "accommodate", pos: "v", note: "chứa được / đáp ứng" },
+          { word: "accommodation", pos: "n", note: "chỗ ở, nơi lưu trú" },
+          { word: "accommodating", pos: "adj", note: "sẵn lòng giúp đỡ, dễ chịu" }
+        ],
+        collocations: [
+          "accommodate up to 200 guests (chứa được tới 200 khách)",
+          "accommodate a request (đáp ứng yêu cầu)"
+        ],
+        exEn: "Today, the event space can accommodate up to 200 guests for office parties.",
+        exVi: "Ngày nay, không gian tổ chức sự kiện có thể chứa tới 200 khách cho các bữa tiệc công ty.",
+        note: "Chính tả có 2 chữ 'c' và 2 chữ 'm' (a-cc-o-mm-o-date)."
+      },
+      "expedite": {
+        word: "expedite",
+        ipa: "/ˈek.spə.daɪt/",
+        pos: "v",
+        cefr: "C1",
+        meaning: "Xúc tiến, đẩy nhanh tiến độ (đơn hàng, quy trình, giao hàng)",
+        family: [
+          { word: "expedite", pos: "v", note: "đẩy nhanh tiến độ" },
+          { word: "expedited", pos: "adj", note: "được chuyển phát nhanh / hỏa tốc" },
+          { word: "expedition", pos: "n", note: "sự nhanh chóng; chuyến thám hiểm" }
+        ],
+        collocations: [
+          "expedite the process (đẩy nhanh quy trình)",
+          "expedited shipping (vận chuyển hỏa tốc)"
+        ],
+        exEn: "To expedite the process of online orders, the company has decided to hire more staff.",
+        exVi: "Để đẩy nhanh quy trình xử lý đơn hàng trực tuyến, công ty đã quyết định tuyển thêm nhân viên.",
+        note: "Từ vựng ăn điểm TOEIC 800+ chủ đề đơn hàng & vận chuyển."
+      },
+      "shipment": {
+        word: "shipment",
+        ipa: "/ˈʃɪp.mənt/",
+        pos: "n",
+        cefr: "B1",
+        meaning: "Lô hàng, chuyến hàng (được gửi đi bằng đường biển/hàng không/bộ)",
+        family: [
+          { word: "ship", pos: "v", note: "gửi hàng, vận chuyển" },
+          { word: "shipment", pos: "n", note: "lô hàng" },
+          { word: "shipping", pos: "n", note: "việc vận chuyển hàng hóa" },
+          { word: "shipper", pos: "n", note: "người gửi hàng" }
+        ],
+        collocations: [
+          "delay in the shipment (sự chậm trễ lô hàng)",
+          "schedule a shipment (lên lịch giao lô hàng)",
+          "free two-day shipping (miễn phí vận chuyển 2 ngày)"
+        ],
+        exEn: "A record number of appliance shipments came into the Port of Reece last month.",
+        exVi: "Một số lượng kỷ lục các lô hàng thiết bị gia dụng đã cập cảng Reece vào tháng trước.",
+        note: "'Shipment' là danh từ đếm được (a shipment / shipments), còn 'shipping' không đếm được."
+      },
+      "approve": {
+        word: "approve",
+        ipa: "/əˈpruːv/",
+        pos: "v",
+        cefr: "B1",
+        meaning: "Phê duyệt, chấp thuận, tán thành (đề xuất, ngân sách, đơn từ)",
+        family: [
+          { word: "approve", pos: "v", note: "phê duyệt" },
+          { word: "approval", pos: "n", note: "sự phê duyệt" },
+          { word: "approved", pos: "adj", note: "đã được duyệt" },
+          { word: "approvingly", pos: "adv", note: "một cách tán thành" }
+        ],
+        collocations: [
+          "get approval from (nhận sự phê duyệt từ)",
+          "approve a proposal (phê duyệt bản đề xuất)",
+          "conditionally approved (phê duyệt có điều kiện)"
+        ],
+        exEn: "Merchandise will be delivered to the location as soon as we get approval from the managers.",
+        exVi: "Hàng hóa sẽ được giao đến địa điểm ngay khi chúng tôi nhận được sự phê duyệt từ quản lý.",
+        note: "Lưu ý 'approval' kết thúc bằng đuôi -al nhưng là Danh từ (không phải tính từ)."
+      },
+      "efficient": {
+        word: "efficient",
+        ipa: "/ɪˈfɪʃ.ənt/",
+        pos: "adj",
+        cefr: "B1",
+        meaning: "Có hiệu quả cao, tiết kiệm thời gian và công sức",
+        family: [
+          { word: "efficient", pos: "adj", note: "hiệu quả, năng suất" },
+          { word: "efficiently", pos: "adv", note: "một cách hiệu quả" },
+          { word: "efficiency", pos: "n", note: "hiệu suất, tính hiệu quả" },
+          { word: "inefficient", pos: "adj", note: "kém hiệu quả" }
+        ],
+        collocations: [
+          "operate efficiently (vận hành hiệu quả)",
+          "operating efficiency (hiệu suất vận hành)",
+          "energy-efficient (tiết kiệm năng lượng)"
+        ],
+        exEn: "Technical progress is making it possible to produce goods more efficiently with less labor input.",
+        exVi: "Tiến bộ kỹ thuật giúp việc sản xuất hàng hóa hiệu quả hơn với ít nhân công hơn.",
+        note: "Phân biệt: 'efficient' (làm nhanh, ít tốn kém) vs. 'effective' (đạt được kết quả mong muốn)."
+      },
+      "consistent": {
+        word: "consistent",
+        ipa: "/kənˈsɪs.tənt/",
+        pos: "adj",
+        cefr: "B2",
+        meaning: "Nhất quán, đều đặn, trước sau như một",
+        family: [
+          { word: "consist", pos: "v", note: "bao gồm (consist of)" },
+          { word: "consistent", pos: "adj", note: "nhất quán, đều đặn" },
+          { word: "consistently", pos: "adv", note: "một cách liên tục, đều đặn" },
+          { word: "consistency", pos: "n", note: "tính nhất quán" }
+        ],
+        collocations: [
+          "consistently deliver results (liên tục mang lại kết quả tốt)",
+          "be consistent with (nhất quán/phù hợp với)"
+        ],
+        exEn: "Our dedicated team has consistently produced high-quality, innovative products since 1995.",
+        exVi: "Đội ngũ tận tâm của chúng tôi đã liên tục tạo ra các sản phẩm sáng tạo, chất lượng cao từ năm 1995.",
+        note: "Động từ 'consist of' luôn chia ở thể chủ động, không chia bị động."
+      },
+      "implement": {
+        word: "implement",
+        ipa: "/ˈɪm.plə.ment/",
+        pos: "v",
+        cefr: "B2",
+        meaning: "Triển khai, thi hành, áp dụng vào thực tế (hệ thống, chính sách)",
+        family: [
+          { word: "implement", pos: "v", note: "triển khai, thực hiện" },
+          { word: "implementation", pos: "n", note: "sự triển khai, thi hành" },
+          { word: "implemented", pos: "adj", note: "đã được áp dụng" }
+        ],
+        collocations: [
+          "implement a new system (triển khai hệ thống mới)",
+          "implement policies (ban hành & thi hành chính sách)"
+        ],
+        exEn: "Northeast Community Finance has implemented an online system in order to shorten service lines.",
+        exVi: "Công ty Tài chính Northeast đã triển khai hệ thống trực tuyến nhằm rút ngắn hàng chờ dịch vụ.",
+        note: "Từ đồng nghĩa hay gặp: carry out / put into practice."
+      },
+      "reimburse": {
+        word: "reimburse",
+        ipa: "/ˌriː.ɪmˈbɝːs/",
+        pos: "v",
+        cefr: "C1",
+        meaning: "Hoàn trả lại tiền (chi phí công tác, hóa đơn đã ứng trước)",
+        family: [
+          { word: "reimburse", pos: "v", note: "hoàn trả tiền" },
+          { word: "reimbursement", pos: "n", note: "khoản tiền hoàn trả" },
+          { word: "reimbursable", pos: "adj", note: "có thể được hoàn lại tiền" }
+        ],
+        collocations: [
+          "reimburse travel expenses (hoàn trả chi phí đi lại)",
+          "submit a reimbursement claim (nộp đơn yêu cầu hoàn tiền)"
+        ],
+        exEn: "The company will reimburse employees for all approved travel and meal expenses.",
+        exVi: "Công ty sẽ hoàn trả cho nhân viên tất cả các chi phí đi lại và ăn uống đã được phê duyệt.",
+        note: "Cấu trúc chuẩn: reimburse + [người] + for + [khoản chi phí]."
+      }
+    };
+
+    // =========================================================================
+    // 2. BỘ PHÂN TÍCH HÌNH THÁI TỪ (MORPHOLOGICAL WORD FAMILY GENERATOR)
+    // =========================================================================
+    function generateMorphologicalFamily(rawWord, apiPosList = []) {
+      const w = rawWord.toLowerCase().trim();
+      const family = [];
+      const seen = new Set();
+
+      function pushItem(wordForm, pos, note) {
+        if (!wordForm || seen.has(wordForm)) return;
+        seen.add(wordForm);
+        family.push({ word: wordForm, pos, note });
+      }
+
+      const primaryPos = apiPosList[0] || "";
+
+      // Detect suffix patterns to reconstruct root & siblings accurately
+      if (w.endsWith("tion") || w.endsWith("sion")) {
+        const stem = w.replace(/(ation|ition|tion|sion)$/, "");
+        pushItem(w, "n", "danh từ chỉ sự việc/quá trình");
+        if (stem.length >= 3) {
+          pushItem(stem + (w.endsWith("ation") ? "e" : ""), "v", "động từ gốc");
+          pushItem(stem + "ive", "adj", "tính từ mô tả");
+          pushItem(stem + "ively", "adv", "trạng từ");
+        }
+      } else if (w.endsWith("ment")) {
+        const stem = w.slice(0, -4);
+        pushItem(stem, "v", "động từ gốc");
+        pushItem(w, "n", "danh từ");
+        pushItem(stem + "ed", "adj", "tính từ bị động");
+      } else if (w.endsWith("ly") && w.length > 4) {
+        const adj = w.slice(0, -2);
+        pushItem(adj, "adj", "tính từ gốc");
+        pushItem(w, "adv", "trạng từ");
+        pushItem(adj + "ness", "n", "danh từ chỉ tính chất");
+      } else if (w.endsWith("able") || w.endsWith("ible")) {
+        const stem = w.slice(0, -4);
+        pushItem(stem, "v", "động từ gốc");
+        pushItem(w, "adj", "tính từ (có thể...)");
+        pushItem(w.slice(0, -2) + "ility", "n", "danh từ chỉ khả năng");
+      } else if (w.endsWith("ive") && w.length > 4) {
+        const stem = w.slice(0, -3);
+        pushItem(stem + "e", "v", "động từ gốc");
+        pushItem(w, "adj", "tính từ");
+        pushItem(w + "ly", "adv", "trạng từ");
+        pushItem(stem + "ion", "n", "danh từ");
+      } else if (w.endsWith("ance") || w.endsWith("ence")) {
+        const stem = w.slice(0, -4);
+        pushItem(stem, "v", "động từ gốc");
+        pushItem(w, "n", "danh từ");
+        pushItem(stem + (w.endsWith("ance") ? "ant" : "ent"), "adj", "tính từ");
+      } else {
+        // Base verb / noun / adjective fallback
+        const posTag = primaryPos === "noun" ? "n" : primaryPos === "adjective" ? "adj" : primaryPos === "adverb" ? "adv" : "v";
+        pushItem(w, posTag, "từ gốc bạn vừa nhập");
+
+        if (posTag === "v") {
+          const baseNoE = w.endsWith("e") ? w.slice(0, -1) : w;
+          pushItem(baseNoE + "tion", "n", "danh từ (sự...)");
+          pushItem(baseNoE + "able", "adj", "tính từ (có thể...)");
+          pushItem(baseNoE + "ed", "adj", "tính từ (đã được...)");
+        } else if (posTag === "adj") {
+          pushItem(w + "ly", "adv", "trạng từ");
+          pushItem(w + "ness", "n", "danh từ chỉ tính chất");
+        } else if (posTag === "n") {
+          pushItem(w + "al", "adj", "tính từ liên quan");
+        }
+      }
+
+      return family.slice(0, 4);
+    }
+
+    // =========================================================================
+    // 3. TRẠNG THÁI & LƯU TRỮ LOCALSTORAGE
+    // =========================================================================
+    const STORAGE_KEY = "smart_vocab_notebook_v1";
+    let savedWords = [];
+    let currentAnalyzedWord = null;
+    let deckFilter = "all";
+    let practiceMode = "flashcard";
+    let practiceIndex = 0;
+    let cardFlipped = false;
+
+    function loadSavedWords() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          savedWords = JSON.parse(raw);
+        } else {
+          // Nạp sẵn 8 từ mẫu TOEIC cốt lõi để bạn trải nghiệm ngay
+          const starterKeys = ["confirm", "negotiate", "eligible", "distribute", "accommodate", "expedite", "shipment", "approve"];
+          savedWords = starterKeys.map(k => ({
+            ...CURATED_DICTIONARY[k],
+            mastered: false,
+            addedAt: Date.now()
+          }));
+          persistWords();
+        }
+      } catch (e) {
+        savedWords = [];
+      }
+      updateSavedCounter();
+    }
+
+    function persistWords() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(savedWords));
+      } catch (e) {
+        console.warn("Storage warning:", e);
+      }
+      updateSavedCounter();
+    }
+
+    function updateSavedCounter() {
+      document.getElementById("saved-count-badge").textContent = savedWords.length;
+    }
+
+    // =========================================================================
+    // 4. PHÁT ÂM AUDIO & TOAST
+    // =========================================================================
+    function speakWord(text, audioUrl = "") {
+      if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        audio.play().catch(() => fallbackTTS(text));
+        return;
+      }
+      fallbackTTS(text);
+    }
+
+    function fallbackTTS(text) {
+      if (!("speechSynthesis" in window)) {
+        showToast("Trình duyệt chưa hỗ trợ phát âm.", "warning");
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "en-US";
+      u.rate = 0.95;
+      window.speechSynthesis.speak(u);
+    }
+
+    function showToast(msg, type = "info") {
+      const container = document.getElementById("toast-container");
+      const colors = {
+        success: "bg-emerald-600 text-white",
+        warning: "bg-amber-500 text-slate-950",
+        info: "bg-slate-900 text-white"
+      };
+      const div = document.createElement("div");
+      div.className = `pointer-events-auto px-4 py-3 rounded-2xl shadow-lg text-xs font-bold transition-all duration-300 ${colors[type] || colors.info}`;
+      div.textContent = msg;
+      container.appendChild(div);
+      setTimeout(() => {
+        div.style.opacity = "0";
+        setTimeout(() => div.remove(), 300);
+      }, 2800);
+    }
+
+    // =========================================================================
+    // 5. CHUYỂN ĐỔI 3 TAB CHÍNH
+    // =========================================================================
+    function switchMainTab(tab) {
+      ["lookup", "deck", "practice"].forEach(t => {
+        document.getElementById(`view-${t}`).classList.toggle("hidden", t !== tab);
+        const btn = document.getElementById(`tab-${t}`);
+        if (t === tab) {
+          btn.className = "px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white text-[#4F46E5] shadow-2xs transition flex items-center gap-1.5";
+        } else {
+          btn.className = "px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5";
+        }
+      });
+
+      if (tab === "deck") renderSavedDeck();
+      if (tab === "practice") renderPracticeStage();
+    }
+
+    // =========================================================================
+    // 6. TRA & TỰ ĐỘNG PHÂN TÍCH WORD FAMILY CHO BẤT KỲ TỪ NÀO
+    // =========================================================================
+    function quickLookup(w) {
+      document.getElementById("word-input").value = w;
+      analyzeWord();
+    }
+
+    async function analyzeWord() {
+      const inputEl = document.getElementById("word-input");
+      const raw = inputEl.value.trim().toLowerCase();
+      if (!raw) {
+        showToast("Bạn hãy nhập một từ tiếng Anh vào ô nhé!", "warning");
+        inputEl.focus();
+        return;
+      }
+
+      const btn = document.getElementById("analyze-btn");
+      btn.disabled = true;
+      btn.innerHTML = `<span>⏳ Đang phân tích...</span>`;
+
+      let entry = null;
+
+      // Bước 1: Kiểm tra trong kho từ điển TOEIC chuẩn xác có sẵn
+      if (CURATED_DICTIONARY[raw]) {
+        entry = { ...CURATED_DICTIONARY[raw], audioUrl: "" };
+      } else {
+        // Bước 2: Gọi Free Dictionary API + Dịch tự động tiếng Việt + Engine sinh Word Family
+        let ipa = `/${raw}/`;
+        let audioUrl = "";
+        let posList = [];
+        let exEn = `We need to use "${raw}" properly in our daily business communication.`;
+        let synonyms = [];
+
+        try {
+          const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(raw)}`);
+          if (dictRes.ok) {
+            const data = await dictRes.json();
+            const first = data[0];
+            if (first.phonetic) ipa = first.phonetic;
+            if (first.phonetics && first.phonetics.length > 0) {
+              const withAudio = first.phonetics.find(p => p.audio);
+              if (withAudio) audioUrl = withAudio.audio;
+              const withText = first.phonetics.find(p => p.text);
+              if (withText) ipa = withText.text;
+            }
+            if (first.meanings && first.meanings.length > 0) {
+              posList = first.meanings.map(m => m.partOfSpeech);
+              for (const m of first.meanings) {
+                const defWithEx = m.definitions.find(d => d.example);
+                if (defWithEx) {
+                  exEn = defWithEx.example;
+                  break;
+                }
+              }
+              synonyms = (first.meanings[0].synonyms || []).slice(0, 3);
+            }
+          }
+        } catch (e) {
+          // Offline fallback silently
+        }
+
+        // Dịch nghĩa tiếng Việt & câu ví dụ tự động
+        let viMeaning = `Nghĩa tiếng Việt của "${raw}" (bấm để chỉnh sửa ghi chú)`;
+        let exVi = "Ví dụ thực tế trong ngữ cảnh giao tiếp & công việc.";
+        try {
+          const trRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(raw)}&langpair=en|vi`);
+          if (trRes.ok) {
+            const trData = await trRes.json();
+            if (trData?.responseData?.translatedText) {
+              viMeaning = trData.responseData.translatedText;
+            }
+          }
+          const exTrRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(exEn)}&langpair=en|vi`);
+          if (exTrRes.ok) {
+            const exTrData = await exTrRes.json();
+            if (exTrData?.responseData?.translatedText) {
+              exVi = exTrData.responseData.translatedText;
+            }
+          }
+        } catch (e) {
+          // Keep fallback
+        }
+
+        const shortPos = posList[0] === "noun" ? "n" : posList[0] === "verb" ? "v" : posList[0] === "adjective" ? "adj" : posList[0] === "adverb" ? "adv" : "n/v/adj";
+        const family = generateMorphologicalFamily(raw, posList);
+        const collocations = synonyms.length > 0
+          ? synonyms.map(s => `Đồng nghĩa: ${s}`)
+          : [`use "${raw}" in a formal email`, `common business context with "${raw}"`];
+
+        entry = {
+          word: raw,
+          ipa,
+          audioUrl,
+          pos: shortPos,
+          cefr: raw.length >= 8 ? "B2" : "B1",
+          meaning: viMeaning,
+          family,
+          collocations,
+          exEn,
+          exVi,
+          note: "Bạn có thể bấm trực tiếp vào nghĩa tiếng Việt hoặc ví dụ để tự sửa lại theo ý hiểu của mình."
+        };
+      }
+
+      currentAnalyzedWord = entry;
+      renderResultCard(entry);
+      speakWord(entry.word, entry.audioUrl);
+
+      // Tự động lưu nếu đang bật checkbox
+      if (document.getElementById("auto-save-toggle").checked) {
+        saveCurrentWordToDeck(true);
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = `<span>✨ Phân tích từ</span>`;
+    }
+
+    function renderResultCard(item) {
+      const isAlreadySaved = savedWords.some(w => w.word.toLowerCase() === item.word.toLowerCase());
+      const posColors = {
+        n: "bg-sky-50 text-sky-700 border-sky-200",
+        v: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        adj: "bg-amber-50 text-amber-800 border-amber-200",
+        adv: "bg-purple-50 text-purple-700 border-purple-200"
+      };
+
+      const container = document.getElementById("result-container");
+      container.innerHTML = `
+        <div class="bg-white rounded-3xl border border-slate-200 p-5 sm:p-7 shadow-2xs space-y-5 card-enter">
+          <!-- Hàng 1: Từ vựng + IPA + Loa + Nút Lưu -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div>
+              <div class="flex items-center gap-2.5 flex-wrap">
+                <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">${item.word}</h2>
+                <button onclick="speakWord('${item.word.replace(/'/g, "\\'")}', '${item.audioUrl || ''}')" class="w-10 h-10 rounded-full bg-indigo-50 hover:bg-indigo-100 text-[#4F46E5] flex items-center justify-center text-lg transition" title="Nghe phát âm chuẩn">
+                  🔊
+                </button>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-indigo-50 text-[#4F46E5]">${item.cefr}</span>
+              </div>
+              <p class="text-sm font-mono text-slate-500 mt-1">${item.ipa} • <span class="font-sans font-bold text-[#4F46E5]">(${item.pos})</span></p>
+            </div>
+
+            <button onclick="saveCurrentWordToDeck(false)" id="save-word-btn" class="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition shrink-0 ${isAlreadySaved ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-[#4F46E5] text-white hover:bg-indigo-700'}">
+              ${isAlreadySaved ? '✅ Đã lưu trong Kho Từ' : '💾 Lưu vào Kho Từ'}
+            </button>
+          </div>
+
+          <!-- Hàng 2: Nghĩa tiếng Việt (Cho phép bấm sửa trực tiếp) -->
+          <div class="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">Nghĩa tiếng Việt (Bấm vào chữ để tự chỉnh sửa)</span>
+            </div>
+            <p id="editable-meaning" contenteditable="true" onblur="updateCurrentField('meaning', this.innerText)" class="text-base sm:text-lg font-extrabold text-slate-900 focus:outline-none focus:bg-white focus:px-2 focus:rounded-lg">
+              ${item.meaning}
+            </p>
+          </div>
+
+          <!-- Hàng 3: WORD FAMILY (HỌ TỪ VỰNG) -->
+          <div class="space-y-2.5">
+            <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <span>🌳</span> <span>Word Family (Họ Từ Vựng — Bấm từng từ để nghe phát âm)</span>
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              ${item.family.map(f => {
+                const badgeStyle = posColors[f.pos] || "bg-slate-100 text-slate-700 border-slate-200";
+                return `
+                  <div onclick="speakWord('${f.word.replace(/'/g, "\\'")}')" class="cursor-pointer p-3 rounded-2xl border border-slate-200 hover:border-[#4F46E5] bg-slate-50/60 hover:bg-indigo-50/30 transition flex items-center justify-between gap-2">
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <span class="font-extrabold text-sm sm:text-base text-slate-900">${f.word}</span>
+                        <span class="px-2 py-0.5 rounded-md border text-[11px] font-bold ${badgeStyle}">${f.pos}</span>
+                      </div>
+                      <p class="text-xs text-slate-600 mt-0.5">${f.note}</p>
+                    </div>
+                    <span class="text-xs text-[#4F46E5] font-bold shrink-0">🔊</span>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          </div>
+
+          <!-- Hàng 4: Collocations & Ví dụ thực tế -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+              <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-500">🔗 Cụm từ hay đi kèm (Collocations)</h4>
+              <ul class="space-y-1.5 text-xs sm:text-sm text-slate-700 font-medium">
+                ${item.collocations.map(c => `<li class="flex items-start gap-1.5"><span class="text-[#4F46E5] font-bold">•</span> <span>${c}</span></li>`).join("")}
+              </ul>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-1.5">
+              <div class="flex items-center justify-between">
+                <h4 class="text-xs font-extrabold uppercase tracking-wider text-[#4F46E5]">💬 Ví dụ đặt câu thực tế</h4>
+                <button onclick="speakWord(\`${item.exEn.replace(/`/g, "'")}\`)" class="text-xs font-bold text-[#4F46E5] hover:underline">🔊 Nghe câu</button>
+              </div>
+              <p class="text-xs sm:text-sm font-semibold text-slate-900 italic leading-relaxed">"${item.exEn}"</p>
+              <p class="text-xs text-slate-600 leading-relaxed">${item.exVi}</p>
+            </div>
+          </div>
+
+          <!-- Hàng 5: Mẹo ghi nhớ / Phân biệt từ dễ nhầm -->
+          ${item.note ? `
+            <div class="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 text-xs text-amber-950 leading-relaxed">
+              💡 <strong>Ghi chú nhớ lâu:</strong> ${item.note}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    function updateCurrentField(field, newVal) {
+      if (!currentAnalyzedWord) return;
+      currentAnalyzedWord[field] = newVal.trim();
+      const idx = savedWords.findIndex(w => w.word.toLowerCase() === currentAnalyzedWord.word.toLowerCase());
+      if (idx !== -1) {
+        savedWords[idx][field] = newVal.trim();
+        persistWords();
+        showToast("Đã cập nhật ghi chú nghĩa tiếng Việt!", "success");
+      }
+    }
+
+    function saveCurrentWordToDeck(silent = false) {
+      if (!currentAnalyzedWord) return;
+      const idx = savedWords.findIndex(w => w.word.toLowerCase() === currentAnalyzedWord.word.toLowerCase());
+      if (idx !== -1) {
+        savedWords[idx] = { ...savedWords[idx], ...currentAnalyzedWord };
+        if (!silent) showToast(`Từ "${currentAnalyzedWord.word}" đã có sẵn trong Kho Từ!`, "info");
+      } else {
+        savedWords.unshift({
+          ...currentAnalyzedWord,
+          mastered: false,
+          addedAt: Date.now()
+        });
+        if (!silent) showToast(`✅ Đã lưu "${currentAnalyzedWord.word}" vào Kho Từ Của Tôi!`, "success");
+      }
+      persistWords();
+      const btn = document.getElementById("save-word-btn");
+      if (btn) {
+        btn.className = "px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition shrink-0 bg-emerald-50 text-emerald-700 border border-emerald-200";
+        btn.textContent = "✅ Đã lưu trong Kho Từ";
+      }
+    }
+
+    // =========================================================================
+    // 7. TAB 2: KHO TỪ VỰNG ĐÃ LƯU
+    // =========================================================================
+    function setDeckFilter(filter, btnEl) {
+      deckFilter = filter;
+      document.querySelectorAll(".deck-filter-btn").forEach(b => {
+        b.className = "deck-filter-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200";
+      });
+      if (btnEl) {
+        btnEl.className = "deck-filter-btn px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#4F46E5] text-white";
+      }
+      renderSavedDeck();
+    }
+
+    function renderSavedDeck() {
+      const query = document.getElementById("deck-search").value.toLowerCase().trim();
+      const filtered = savedWords.filter(w => {
+        const matchFilter = deckFilter === "all" || (deckFilter === "mastered" && w.mastered) || (deckFilter === "learning" && !w.mastered);
+        const matchSearch = w.word.toLowerCase().includes(query) || w.meaning.toLowerCase().includes(query);
+        return matchFilter && matchSearch;
+      });
+
+      const listEl = document.getElementById("saved-deck-list");
+      if (filtered.length === 0) {
+        listEl.innerHTML = `
+          <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-sm text-slate-500 space-y-2">
+            <p>Chưa có từ vựng nào trong mục này.</p>
+            <button onclick="switchMainTab('lookup')" class="px-4 py-2 rounded-xl bg-[#4F46E5] text-white text-xs font-bold">➕ Thêm từ mới ngay</button>
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(w => `
+        <div class="bg-white rounded-2xl border ${w.mastered ? 'border-emerald-200' : 'border-slate-200'} p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="space-y-1.5 flex-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h3 class="font-extrabold text-lg text-slate-900">${w.word}</h3>
+              <button onclick="speakWord('${w.word.replace(/'/g, "\\'")}', '${w.audioUrl || ''}')" class="w-7 h-7 rounded-full bg-indigo-50 text-[#4F46E5] text-xs flex items-center justify-center">🔊</button>
+              <span class="text-xs font-mono text-slate-400">${w.ipa}</span>
+              <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-bold">${w.pos}</span>
+            </div>
+            <p class="text-sm font-bold text-emerald-700">${w.meaning}</p>
+            <div class="flex flex-wrap items-center gap-1.5 pt-1">
+              <span class="text-[11px] font-bold text-slate-400">Word Family:</span>
+              ${(w.family || []).map(f => `
+                <span onclick="speakWord('${f.word}')" class="cursor-pointer px-2 py-0.5 rounded-md bg-indigo-50/70 hover:bg-indigo-100 text-[#4F46E5] text-[11px] font-semibold">
+                  ${f.word} (${f.pos})
+                </span>
+              `).join("")}
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+            <button onclick="reopenWordDetail('${w.word.replace(/'/g, "\\'")}')" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold">
+              Xem chi tiết
+            </button>
+            <button onclick="toggleMasteredSaved('${w.word.replace(/'/g, "\\'")}')" class="px-3 py-1.5 rounded-xl text-xs font-bold ${w.mastered ? 'bg-emerald-600 text-white' : 'bg-amber-50 text-amber-800 border border-amber-200'}">
+              ${w.mastered ? '✓ Đã thuộc' : 'Đánh dấu thuộc'}
+            </button>
+            <button onclick="deleteSavedWord('${w.word.replace(/'/g, "\\'")}')" class="w-8 h-8 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold flex items-center justify-center" title="Xóa từ">
+              ✕
+            </button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function reopenWordDetail(wordStr) {
+      const found = savedWords.find(w => w.word === wordStr);
+      if (!found) return;
+      currentAnalyzedWord = found;
+      switchMainTab("lookup");
+      document.getElementById("word-input").value = found.word;
+      renderResultCard(found);
+    }
+
+    function toggleMasteredSaved(wordStr) {
+      const w = savedWords.find(item => item.word === wordStr);
+      if (!w) return;
+      w.mastered = !w.mastered;
+      persistWords();
+      renderSavedDeck();
+    }
+
+    function deleteSavedWord(wordStr) {
+      savedWords = savedWords.filter(item => item.word !== wordStr);
+      persistWords();
+      renderSavedDeck();
+      showToast(`Đã xóa từ "${wordStr}" khỏi sổ tay.`, "info");
+    }
+
+    function exportDeckCsv() {
+      if (savedWords.length === 0) return;
+      const rows = [["Word", "IPA", "POS", "Meaning", "Word Family", "Example"]];
+      savedWords.forEach(w => {
+        const fam = (w.family || []).map(f => `${f.word} (${f.pos})`).join("; ");
+        rows.push([w.word, w.ipa, w.pos, w.meaning, fam, w.exEn].map(v => `"${String(v || '').replace(/"/g, '""')}"`));
+      });
+      const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(r => r.join(",")).join("\n");
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI(csvContent));
+      link.setAttribute("download", `So_Tay_Tu_Vung_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      showToast("⬇️ Đã tải file Excel/CSV sổ tay từ vựng!", "success");
+    }
+
+    // =========================================================================
+    // 8. TAB 3: LUYỆN NHỚ NHANH (FLASHCARD + TRẮC NGHIỆM TỪ KHO ĐÃ LƯU)
+    // =========================================================================
+    function setPracticeMode(mode) {
+      practiceMode = mode;
+      cardFlipped = false;
+      const btnFc = document.getElementById("pmode-flashcard");
+      const btnQz = document.getElementById("pmode-quiz");
+      if (mode === "flashcard") {
+        btnFc.className = "px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#4F46E5] text-white transition";
+        btnQz.className = "px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition";
+      } else {
+        btnQz.className = "px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#4F46E5] text-white transition";
+        btnFc.className = "px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition";
+      }
+      renderPracticeStage();
+    }
+
+    function renderPracticeStage() {
+      const stage = document.getElementById("practice-stage");
+      if (savedWords.length < 2) {
+        stage.innerHTML = `
+          <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3">
+            <p class="text-sm text-slate-600">Bạn cần lưu ít nhất <strong>2 từ vựng</strong> để bắt đầu luyện tập nhé!</p>
+            <button onclick="switchMainTab('lookup')" class="px-4 py-2 rounded-xl bg-[#4F46E5] text-white text-xs font-bold">➕ Thêm từ mới</button>
+          </div>
+        `;
+        return;
+      }
+
+      const pool = savedWords.filter(w => !w.mastered);
+      const list = pool.length > 0 ? pool : savedWords;
+      const current = list[practiceIndex % list.length];
+
+      if (practiceMode === "flashcard") {
+        stage.innerHTML = `
+          <div class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-2xs space-y-6 card-enter">
+            <div class="flex items-center justify-between text-xs font-bold text-slate-400">
+              <span>Thẻ ${(practiceIndex % list.length) + 1} / ${list.length}</span>
+              <span>${current.mastered ? '✅ Đã thuộc' : '⏳ Đang ôn'}</span>
+            </div>
+
+            <div class="text-center py-6 space-y-2">
+              <div class="flex items-center justify-center gap-2.5">
+                <h3 class="text-3xl sm:text-4xl font-extrabold text-slate-900">${current.word}</h3>
+                <button onclick="speakWord('${current.word}', '${current.audioUrl || ''}')" class="w-10 h-10 rounded-full bg-indigo-50 text-[#4F46E5] text-lg flex items-center justify-center">🔊</button>
+              </div>
+              <p class="text-sm font-mono text-slate-500">${current.ipa} • (${current.pos})</p>
+            </div>
+
+            ${!cardFlipped ? `
+              <div class="text-center">
+                <button onclick="cardFlipped=true; renderPracticeStage();" class="px-6 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-bold transition">
+                  👁️ Lật xem nghĩa & Word Family
+                </button>
+              </div>
+            ` : `
+              <div class="space-y-4 pt-4 border-t border-slate-100">
+                <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+                  <p class="text-base sm:text-lg font-extrabold text-slate-900">${current.meaning}</p>
+                  <p class="text-xs text-slate-600 mt-1.5"><strong>Word Family:</strong> ${(current.family || []).map(f => `${f.word} (${f.pos})`).join(" • ")}</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-slate-50 text-xs space-y-1">
+                  <p class="italic font-semibold text-slate-800">"${current.exEn}"</p>
+                  <p class="text-slate-500">${current.exVi}</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3 pt-1">
+                  <button onclick="nextPracticeCard(false)" class="py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-xs sm:text-sm font-bold">
+                    🔄 Chưa nhớ (Ôn tiếp)
+                  </button>
+                  <button onclick="nextPracticeCard(true)" class="py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold">
+                    ✅ Đã thuộc từ này
+                  </button>
+                </div>
+              </div>
+            `}
+          </div>
+        `;
+      } else {
+        // Quiz mode
+        const distractors = savedWords.filter(w => w.word !== current.word).sort(() => 0.5 - Math.random()).slice(0, 3);
+        const options = [current, ...distractors].sort(() => 0.5 - Math.random());
+
+        stage.innerHTML = `
+          <div class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-2xs space-y-5 card-enter">
+            <div class="flex items-center justify-between text-xs font-bold text-slate-400">
+              <span>Câu hỏi ${(practiceIndex % list.length) + 1} / ${list.length}</span>
+              <button onclick="speakWord('${current.word}')" class="text-[#4F46E5] hover:underline">🔊 Nghe phát âm</button>
+            </div>
+
+            <div class="text-center py-3">
+              <p class="text-xs text-slate-500 mb-1">Chọn nghĩa đúng nhất của từ sau:</p>
+              <h3 class="text-3xl font-extrabold text-slate-900">${current.word} <span class="text-sm font-mono font-normal text-slate-400">${current.ipa}</span></h3>
+            </div>
+
+            <div class="space-y-2.5">
+              ${options.map(opt => `
+                <button onclick="checkPracticeQuiz('${opt.word.replace(/'/g, "\\'")}', '${current.word.replace(/'/g, "\\'")}')" class="w-full text-left p-3.5 rounded-2xl border-2 border-slate-200 hover:border-[#4F46E5] text-xs sm:text-sm font-semibold text-slate-800 transition">
+                  ${opt.meaning}
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function nextPracticeCard(markMastered) {
+      const pool = savedWords.filter(w => !w.mastered);
+      const list = pool.length > 0 ? pool : savedWords;
+      const current = list[practiceIndex % list.length];
+      if (current && markMastered) {
+        current.mastered = true;
+        persistWords();
+        showToast(`🎉 Đã đánh dấu thuộc từ "${current.word}"!`, "success");
+      }
+      cardFlipped = false;
+      practiceIndex++;
+      renderPracticeStage();
+    }
+
+    function checkPracticeQuiz(picked, correct) {
+      if (picked === correct) {
+        showToast("✅ Chính xác! Sang từ tiếp theo nhé.", "success");
+        const w = savedWords.find(item => item.word === correct);
+        if (w) { w.mastered = true; persistWords(); }
+        practiceIndex++;
+        renderPracticeStage();
+      } else {
+        showToast("❌ Chưa đúng rồi, thử chọn lại nhé!", "warning");
+      }
+    }
+
+    // =========================================================================
+    // 9. KHỞI TẠO BAN ĐẦU
+    // =========================================================================
+    window.onload = function () {
+      loadSavedWords();
+      quickLookup("confirm");
+    };
+  </script>
+</body>
+</html>
