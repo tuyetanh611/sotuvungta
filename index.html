@@ -181,7 +181,7 @@
 
         <!-- Word Family Grid -->
         <div>
-          <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2.5">🧬 Bảng Word Family (Họ Từ Vựng)</div>
+          <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2.5">🧬 Bảng Word Family (Họ Từ Vựng Chuẩn Từ Điển)</div>
           <div id="res-family" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
         </div>
 
@@ -659,6 +659,88 @@
       lookupWord();
     }
 
+    // Dịch ngắn tiếng Anh -> tiếng Việt
+    async function translateEnToVi(text) {
+      try {
+        const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|vi`);
+        if (res.ok) {
+          const data = await res.json();
+          const tr = data?.responseData?.translatedText;
+          if (tr && tr.toLowerCase() !== text.toLowerCase()) {
+            return tr.toLowerCase();
+          }
+        }
+      } catch (_) {}
+      return "";
+    }
+
+    // Tìm họ từ vựng CÓ THẬT trong từ điển (không bao giờ ghép đuôi bịa từ)
+    async function fetchVerifiedWordFamily(baseWord, baseMeanings, baseViMeaning) {
+      const familyMap = new Map();
+      const mapPos = (p) => {
+        if (p === "noun" || p === "n") return "n";
+        if (p === "verb" || p === "v") return "v";
+        if (p === "adjective" || p === "adj") return "adj";
+        if (p === "adverb" || p === "adv") return "adv";
+        return p;
+      };
+
+      // 1. Thêm các từ loại có sẵn của chính từ đang tra
+      baseMeanings.forEach(m => {
+        const shortPos = mapPos(m.partOfSpeech);
+        if (["n", "v", "adj", "adv"].includes(shortPos) && !familyMap.has(shortPos)) {
+          familyMap.set(shortPos, { pos: shortPos, word: baseWord, meaning: baseViMeaning });
+        }
+      });
+
+      // 2. Truy vấn Datamuse API để lấy các từ có thật cùng gốc (root)
+      const rootPrefix = baseWord.length > 4
+        ? baseWord.replace(/(ation|ition|tion|sion|ment|ness|ity|able|ible|ive|ous|ful|less|ing|ed|ly|er|or|e)$/, "")
+        : baseWord;
+
+      if (rootPrefix.length >= 3) {
+        try {
+          const dmRes = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(rootPrefix)}*&md=p&max=25`);
+          if (dmRes.ok) {
+            const candidates = await dmRes.json();
+            // Lọc từ đơn (không dấu cách/gạch nối), có tag từ loại chuẩn (n, v, adj, adv), khác từ gốc
+            const validCandidates = candidates.filter(c => {
+              const w = c.word.toLowerCase();
+              if (w === baseWord || !/^[a-z]+$/.test(w)) return false;
+              if (w.endsWith("s") && !w.endsWith("ss") && !w.endsWith("ous") && !w.endsWith("ness") && !w.endsWith("is")) return false;
+              return Array.isArray(c.tags) && c.tags.some(t => ["n", "v", "adj", "adv"].includes(t));
+            });
+
+            for (const cand of validCandidates) {
+              if (familyMap.size >= 4) break;
+              const posTag = cand.tags.find(t => ["n", "v", "adj", "adv"].includes(t));
+              if (!posTag || familyMap.has(posTag)) continue;
+
+              // Xác thực chéo qua Free Dictionary API để chắc chắn 100% từ có trong từ điển thật
+              try {
+                const checkRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cand.word)}`);
+                if (checkRes.ok) {
+                  const viTr = await translateEnToVi(cand.word);
+                  const fallbackLabel = posTag === "n" ? "danh từ" : posTag === "v" ? "động từ" : posTag === "adj" ? "tính từ" : "trạng từ";
+                  familyMap.set(posTag, {
+                    pos: posTag,
+                    word: cand.word.toLowerCase(),
+                    meaning: viTr || fallbackLabel
+                  });
+                }
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (familyMap.size === 0) {
+        familyMap.set("word", { pos: "word", word: baseWord, meaning: baseViMeaning });
+      }
+
+      return Array.from(familyMap.values());
+    }
+
     async function lookupWord() {
       const raw = document.getElementById("word-input").value.trim().toLowerCase();
       if (!raw) {
@@ -689,29 +771,8 @@
             const mainDef = meanings[0]?.definitions?.[0]?.definition || "Từ vựng tiếng Anh";
             const mainEx = meanings[0]?.definitions?.[0]?.example || `We need to use "${raw}" accurately in business communication.`;
 
-            let viMeaning = mainDef;
-            try {
-              const trRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(raw)}&langpair=en|vi`);
-              if (trRes.ok) {
-                const trData = await trRes.json();
-                if (trData?.responseData?.translatedText) {
-                  viMeaning = trData.responseData.translatedText.toLowerCase();
-                }
-              }
-            } catch (_) {}
-
-            const familySet = new Map();
-            meanings.forEach(m => {
-              const shortPos = m.partOfSpeech === "noun" ? "n" : m.partOfSpeech === "verb" ? "v" : m.partOfSpeech === "adjective" ? "adj" : m.partOfSpeech === "adverb" ? "adv" : m.partOfSpeech;
-              familySet.set(shortPos, { pos: shortPos, word: raw, meaning: viMeaning });
-            });
-
-            const stem = raw.replace(/(tion|sion|ment|ness|ity|able|ible|ive|ous|ful|less|ing|ed|ly|e)$/, "");
-            if (stem.length >= 3) {
-              if (!familySet.has("n")) familySet.set("n", { pos: "n", word: stem + "tion / " + raw, meaning: "danh từ liên quan" });
-              if (!familySet.has("adj")) familySet.set("adj", { pos: "adj", word: stem + "ive / " + stem + "able", meaning: "tính từ liên quan" });
-              if (!familySet.has("adv")) familySet.set("adv", { pos: "adv", word: raw.endsWith("ly") ? raw : raw + "ly", meaning: "trạng từ" });
-            }
+            const viMeaning = (await translateEnToVi(raw)) || mainDef;
+            const verifiedFamily = await fetchVerifiedWordFamily(first.word || raw, meanings, viMeaning);
 
             entry = {
               word: first.word || raw,
@@ -719,7 +780,7 @@
               ipa: phonetic,
               cefr: "B1–B2 • TOEIC",
               meaning: viMeaning,
-              family: Array.from(familySet.values()),
+              family: verifiedFamily,
               collocations: [
                 { en: `${raw} policy / procedure`, vi: `chính sách / quy trình liên quan đến ${raw}` },
                 { en: `effectively ${raw}`, vi: `${raw} một cách hiệu quả` }
